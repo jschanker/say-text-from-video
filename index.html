@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rokid WebXR Simulator with AR-OCR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #0d1117; /* Dark background */
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        overflow: hidden;
+        margin: 0;
+      }
+      #webgl-container {
+        position: relative;
+        width: 100vw;
+        height: 70vh;
+        max-width: 1000px;
+        max-height: 600px;
+        border: 4px solid #00ffc8; /* Neon border */
+        border-radius: 1rem;
+        box-shadow: 0 0 20px rgba(0, 255, 200, 0.5);
+        margin-bottom: 1rem;
+      }
+      canvas {
+        display: block;
+      }
+      /* AR Overlay Canvas positioned absolutely over the Three.js canvas */
+      #ar-overlay-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none; /* Allows clicks to pass through to the Three.js canvas */
+      }
+      .controls-panel {
+        background: rgba(17, 24, 39, 0.8); /* Semi-transparent dark blue */
+        padding: 1rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      }
+      .control-button {
+        transition: all 0.1s ease;
+        filter: brightness(1);
+      }
+      .control-button:hover {
+        filter: brightness(1.2);
+        box-shadow: 0 0 8px rgba(0, 255, 200, 0.7);
+      }
+      .control-button:active {
+        transform: scale(0.98);
+      }
+      .text-neon {
+        color: #00ffc8;
+        text-shadow: 0 0 5px rgba(0, 255, 200, 0.5);
+      }
+      /* Hidden video element used as the source for the three.js texture */
+      #video-source {
+        display: none;
+      }
+    </style>
+    <script type="module">
+      const currentStream = null;
+      const useCameraBtn = document.getElementById('use-camera-btn');
+      const videoPlayer = document.getElementById('video-player');
+      const loadingSpinner = document.getElementById('loading-spinner');
+
+      videoPlayer.crossOrigin = 'anonymous';
+
+      let captureImage = false;
+      let animationFrameId;
+
+      const { createWorker } = Tesseract;
+      const worker = await createWorker('eng', 1, {
+        logger: (m) => console.log(m),
+      });
+
+      /**
+       * Stops the currently active camera stream, if any.
+       */
+      function stopCamera() {
+        if (currentStream) {
+          currentStream.getTracks().forEach((track) => track.stop());
+          videoPlayer.srcObject = null;
+          isCameraActive = false;
+          currentStream = null;
+          console.log('Camera stopped.');
+        }
+      }
+      async function startCamera(facingMode = 'user') {
+        stopCamera(); // Stop any existing camera stream or video file
+
+        loadingSpinner.classList.remove('hidden');
+        loadingSpinner.querySelector('p').textContent =
+          'Requesting camera access...';
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: facingMode,
+            },
+          });
+          currentStream = stream;
+          videoPlayer.srcObject = stream;
+          videoPlayer.play(); // Autoplay camera stream
+          loadingSpinner.classList.add('hidden'); // Hide loading spinner
+
+          // Set canvas dimensions to camera stream dimensions once loaded
+          videoPlayer.onloadedmetadata = () => {
+            if (!animationFrameId) {
+              animationFrameId =
+                videoPlayer.requestVideoFrameCallback(processVideoFrame);
+            }
+          };
+        } catch (err) {
+          console.error('Error accessing camera: ', err);
+          alert(
+            'Could not access camera. Please ensure you have a camera connected and have granted permission.'
+          );
+          loadingSpinner.classList.add('hidden');
+          loadingSpinner.querySelector('p').textContent =
+            'Error accessing camera.';
+        }
+      }
+
+      async function processVideoFrame() {
+        animationFrameId =
+          videoPlayer.requestVideoFrameCallback(processVideoFrame);
+      }
+
+      async function captureVideo() {
+        captureImage = !captureImage;
+        if (captureImage) {
+          videoPlayer.pause();
+          /*const track =
+            currentStream?.getVideoTracks()[0] ||
+            (await createImageBitmap(videoPlayer));
+          console.log(track);
+
+          const imageCapture = new ImageCapture(track);
+          console.log(track.grabFrame());*/
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.getContext('2d').drawImage(videoPlayer, 0, 0);
+          const data = await worker.recognize(tempCanvas);
+          console.log('Reading', data.data.text);
+          const msg = new SpeechSynthesisUtterance(data.data.text);
+          window.speechSynthesis.speak(msg);
+        } else {
+          videoPlayer.play();
+        }
+      }
+
+      useCameraBtn.addEventListener('click', startCamera);
+      videoPlayer.addEventListener('click', captureVideo);
+      /*videoPlayer.src =
+        'https://upload.wikimedia.org/wikipedia/commons/transcoded/5/53/007_Volcano_eruption_of_Litli-Hr%C3%BAtur_in_Iceland_in_2023_Video_by_Giles_Laurent.webm/007_Volcano_eruption_of_Litli-Hr%C3%BAtur_in_Iceland_in_2023_Video_by_Giles_Laurent.webm.720p.vp9.webm';*/
+      videoPlayer.src =
+        'https://upload.wikimedia.org/wikipedia/commons/transcoded/8/8a/Spartacus_%281960%29_-_Trailer.webm/Spartacus_%281960%29_-_Trailer.webm.360p.webm';
+      videoPlayer.load();
+      console.log('Video loaded');
+    </script>
+  </head>
+  <body class="p-4">
+    <main>
+      <h1 class="text-4xl font-extrabold text-center text-blue-400 mb-6">
+        Speak Text
+      </h1>
+      <div
+        class="video-container rounded-lg shadow-xl border-2 border-blue-500"
+      >
+        <div id="loading-spinner" class="loading-overlay hidden">
+          <div
+            class="spinner rounded-full h-16 w-16 border-t-4 border-b-4"
+          ></div>
+          <p class="ml-4 text-xl text-blue-300">Loading video...</p>
+        </div>
+        <video
+          id="video-player"
+          playsinline
+          muted
+          style="display: block"
+        ></video>
+      </div>
+      <button
+        id="use-camera-btn"
+        class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="lucide lucide-camera mr-2"
+        >
+          <path
+            d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+          />
+          <circle cx="12" cy="13" r="3" />
+        </svg>
+        Use Camera
+      </button>
+    </main>
+  </body>
+</html>

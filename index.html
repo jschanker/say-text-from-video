@@ -98,7 +98,7 @@
           console.log('Camera stopped.');
         }
       }
-      async function startCamera(facingMode = 'user') {
+      async function startCamera(facingMode = 'environment') {
         stopCamera(); // Stop any existing camera stream or video file
 
         loadingSpinner.classList.remove('hidden');

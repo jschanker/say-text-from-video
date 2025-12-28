@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rokid WebXR Simulator with AR-OCR</title>
+    <title>Say Text from Video using OCR</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -71,7 +71,7 @@
       }
     </style>
     <script type="module">
-      const currentStream = null;
+      let currentStream = null;
       const useCameraBtn = document.getElementById('use-camera-btn');
       const videoPlayer = document.getElementById('video-player');
       const loadingSpinner = document.getElementById('loading-spinner');
@@ -93,7 +93,7 @@
         if (currentStream) {
           currentStream.getTracks().forEach((track) => track.stop());
           videoPlayer.srcObject = null;
-          isCameraActive = false;
+          // isCameraActive = false;
           currentStream = null;
           console.log('Camera stopped.');
         }
